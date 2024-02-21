@@ -1,5 +1,6 @@
 import sys
 import os
+import logging
 
 # This set of lines are needed to import the gRPC stubs.
 # The path of the stubs is relative to the current file, or absolute inside the container.
@@ -23,7 +24,7 @@ class HelloService(fraud_detection_grpc.HelloServiceServicer):
         # Set the greeting field of the response object
         response.greeting = "Hello, " + request.name
         # Print the greeting message
-        print(response.greeting)
+        (response.greeting)
         # Return the response object
         return response
 
