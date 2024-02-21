@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package transaction_verification;
+
+service TransactionVerificationService {
+    rpc VerifyTransaction (TransactionVerificationRequest) returns (TransactionVerificationResponse);
+}
+
+message TransactionVerificationRequest {
+    string id = 1;
+}
+
+message TransactionVerificationResponse {
+    bool success = 1;
+}

@@ -19,13 +19,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferStatusResponse'
-        '4xx':
+        '4XX':
           description: Client error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '5xx':
+        '5XX':
           description: Server error
           content:
             application/json:
