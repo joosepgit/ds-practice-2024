@@ -2,7 +2,7 @@
 FROM python:3.11
 
 # Set the working directory in the container
-# Both the utils and src folders will be mounted as volumes, please see docker-compose.yaml
+# Both the spec and src folders will be mounted as volumes, please see docker-compose.yaml
 WORKDIR /app
 
 # Copy the requirements file to the working directory

@@ -1,4 +1,4 @@
-# Utils
+# Spec
 
 This folder contains protocol specification files such as OpenAPI, gRPC, etc.
 

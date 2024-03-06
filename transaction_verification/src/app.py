@@ -2,14 +2,8 @@ import sys
 import os
 import logging
 
-# This set of lines are needed to import the gRPC stubs.
-# The path of the stubs is relative to the current file, or absolute inside the container.
-# Change these lines only if strictly needed.
-FILE = __file__ if '__file__' in globals() else os.getenv("PYTHONFILE", "")
-utils_path = os.path.abspath(os.path.join(FILE, '../../../utils/pb/transaction_verification'))
-sys.path.insert(0, utils_path)
-import transaction_verification_pb2 as transaction_verification
-import transaction_verification_pb2_grpc as transaction_verification_grpc
+import grpc_gen.transaction_verification_pb2 as transaction_verification
+import grpc_gen.transaction_verification_pb2_grpc as transaction_verification_grpc
 
 import grpc
 from concurrent import futures
@@ -27,7 +21,7 @@ class TransactionVerificationService(transaction_verification_grpc.TransactionVe
 def serve():
     # Create a gRPC server
     server = grpc.server(futures.ThreadPoolExecutor())
-    transaction_verification_grpc.add_FraudDetectionServiceServicer_to_server(TransactionVerificationService, server)
+    transaction_verification_grpc.add_TransactionVerificationServiceServicer_to_server(TransactionVerificationService, server)
     # Listen on port 50051
     port = "50052"
     server.add_insecure_port("[::]:" + port)

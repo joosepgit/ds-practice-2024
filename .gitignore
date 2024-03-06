@@ -3,3 +3,6 @@ frontend/package-lock.json
 
 .idea
 .vscode
+
+/**/grpc_gen/**/*
+!/**/grpc_gen/**/__init__.py
