@@ -1,3 +1,4 @@
+import logging
 import sys
 import os
 
@@ -12,14 +13,16 @@ import fraud_detection_pb2_grpc as fraud_detection_grpc
 
 import grpc
 
-def greet(name='you'):
+
+def check_for_fraud(name='you'):
     # Establish a connection with the fraud-detection gRPC service.
     with grpc.insecure_channel('fraud_detection:50051') as channel:
         # Create a stub object.
-        stub = fraud_detection_grpc.HelloServiceStub(channel)
+        stub = fraud_detection_grpc.FraudDetectionService(channel)
         # Call the service through the stub object.
-        response = stub.SayHello(fraud_detection.HelloRequest(name=name))
-    return response.greeting
+        response = stub.DetectFraud(fraud_detection.FraudDetectionRequest(name=name))
+    return response.success
+
 
 # Import Flask.
 # Flask is a web framework for Python.
@@ -33,6 +36,7 @@ app = Flask(__name__)
 # Enable CORS for the app.
 CORS(app)
 
+
 # Define a GET endpoint.
 @app.route('/', methods=['GET'])
 def index():
@@ -40,9 +44,10 @@ def index():
     Responds with 'Hello, [name]' when a GET request is made to '/' endpoint.
     """
     # Test the fraud-detection gRPC service.
-    response = greet(name='orchestrator')
+    response = ""
     # Return the response.
     return response
+
 
 @app.route('/checkout', methods=['POST'])
 def checkout():
@@ -50,7 +55,12 @@ def checkout():
     Responds with a JSON object containing the order ID, status, and suggested books.
     """
     # Print request object data
-    print("Request Data:", request.json)
+    logging.debug(f"Request Data: {request.json}")
+
+    is_fraud = check_for_fraud(request.json["name"])
+
+    logging.info(f"Checking for fraud for {request.json['name']}")
+    logging.info(f"Is fraudulent: {is_fraud}")
 
     # Dummy response following the provided YAML specification for the bookstore
     order_status_response = {
@@ -66,6 +76,7 @@ def checkout():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(format="%(asctime)s | %(levelname)s | %(processName)s| %(message)s", level=logging.INFO)
     # Run the app in debug mode to enable hot reloading.
     # This is useful for development.
     # The default port is 5000.
