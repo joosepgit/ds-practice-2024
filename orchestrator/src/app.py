@@ -1,6 +1,7 @@
 import logging
 import sys
 import os
+import asyncio
 
 import grpc_gen.fraud_detection_pb2 as fraud_detection
 import grpc_gen.fraud_detection_pb2_grpc as fraud_detection_grpc
@@ -21,6 +22,26 @@ def check_for_fraud(name='you'):
         # Call the service through the stub object.
         response = stub.DetectFraud(fraud_detection.FraudDetectionRequest(name=name))
     return response.success
+
+
+def verify_transaction(id='0'):
+    # Establish a connection with the fraud-detection gRPC service.
+    with grpc.insecure_channel('fraud_detection:50052') as channel:
+        # Create a stub object.
+        stub = fraud_detection_grpc.TransactionVerificationService(channel)
+        # Call the service through the stub object.
+        response = stub.VerifyTransaction(fraud_detection.TransactionVerificationRequest(id=id))
+    return response.success
+
+
+def check_for_suggestions(name='you'):
+    # Establish a connection with the fraud-detection gRPC service.
+    with grpc.insecure_channel('fraud_detection:50053') as channel:
+        # Create a stub object.
+        stub = fraud_detection_grpc.SuggestionService(channel)
+        # Call the service through the stub object.
+        response = stub.GetSuggestions(fraud_detection.GetSuggestionsRequest(name=name))
+    return response.suggestedBooks.title
 
 
 # Import Flask.
@@ -53,13 +74,26 @@ def checkout():
     """
     Responds with a JSON object containing the order ID, status, and suggested books.
     """
+
+    async def fraud():
+        logging.info(f"Checking for fraud for {request.json['name']}")
+        is_fraud = check_for_fraud(request.json["name"])
+        logging.info(f"Is fraudulent: {is_fraud}")
+
+    async def transaction():
+        logging.info(f"Verifying transaction {request.json['name']}")
+        transaction_verified = verify_transaction(request.json["ID"])
+        logging.info(f"Transaction verified: {transaction_verified}")
+
+    async def suggestions():
+        logging.info(f"Checking for book suggestions for {request.json['name']}")
+        suggested_book = check_for_suggestions(request.json["name"])
+        logging.info(f"Book {suggested_book} suggested for {request.json['name']}")
+
     # Print request object data
     logging.debug(f"Request Data: {request.json}")
 
-    is_fraud = check_for_fraud(request.json["name"])
-
-    logging.info(f"Checking for fraud for {request.json['name']}")
-    logging.info(f"Is fraudulent: {is_fraud}")
+    asyncio.gather(fraud(), transaction(), suggestions())
 
     # Dummy response following the provided YAML specification for the bookstore
     order_status_response = {
