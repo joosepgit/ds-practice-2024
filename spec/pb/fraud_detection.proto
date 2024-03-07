@@ -7,9 +7,25 @@ service FraudDetectionService {
 }
 
 message FraudDetectionRequest {
-    string name = 1;
+    CreditCard card_information = 1;
+    BillingAddress billing_address = 2;
 }
 
 message FraudDetectionResponse {
     bool success = 1;
+    string additional_info = 2;
+}
+
+message CreditCard {
+    string card_number = 1;
+    string expiration_date = 2;
+    string cvv = 3;
+}
+
+message BillingAddress {
+    string country = 1;
+    string state = 2;
+    string city = 3;
+    string street = 4;
+    string zip = 5;
 }

@@ -1,5 +1,6 @@
 version: '3'
 services:
+
   frontend:
     build:
       context: ./
@@ -12,6 +13,7 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
       - WDS_SOCKET_PORT=0
+
   orchestrator:
     build:
       context: ./
@@ -24,6 +26,7 @@ services:
       - PYTHONPATH=/app/orchestrator/src
     volumes:
       - ./orchestrator/src:/app/orchestrator/src
+
   fraud_detection:
     build:
       context: ./
@@ -36,6 +39,7 @@ services:
       - PYTHONPATH=/app/fraud_detection/src
     volumes:
       - ./fraud_detection/src:/app/fraud_detection/src
+
   transaction_verification:
     build:
       context: ./
@@ -48,6 +52,7 @@ services:
       - PYTHONPATH=/app/transaction_verification/src
     volumes:
       - ./transaction_verification/src:/app/transaction_verification/src
+
   suggestions:
     build:
       context: ./

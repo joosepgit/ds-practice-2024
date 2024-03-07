@@ -111,8 +111,11 @@ const CheckoutPage: React.FC = () => {
 
         } catch (error) {
             if (axios.isAxiosError(error)) {
+                const errObj = error.response?.data.error;
+                const errRef = Object.keys(errObj)[0];
+                const errContent = errObj[errRef];
                 console.error('Error response:', error);
-                alert(`An error occurred: ${error}`);
+                alert(`An error occurred: ${errRef} : ${errContent}`);
             } else {
                 console.error('Unexpected error:', error);
                 alert('An unexpected error occurred');

@@ -68,7 +68,7 @@ const ViewSingleBook: React.FC = () => {
         return (
             <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
                 <div className="spinner-border" role="status">
-                    <span className="sr-only">Loading...</span>
+                    <span className="sr-only"></span>
                 </div>
                 <p className="ml-3">Loading book details...</p>
             </div>

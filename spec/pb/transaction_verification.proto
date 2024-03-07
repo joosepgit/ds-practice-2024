@@ -7,9 +7,35 @@ service TransactionVerificationService {
 }
 
 message TransactionVerificationRequest {
-    string id = 1;
+    CreditCard card_information = 1;
+    BillingAddress billing_address = 2;
+    Items items = 3;
 }
 
 message TransactionVerificationResponse {
     bool success = 1;
+    string additional_info = 2;
+}
+
+message CreditCard {
+    string card_number = 1;
+    string expiration_date = 2;
+    string cvv = 3;
+}
+
+message BillingAddress {
+    string country = 1;
+    string state = 2;
+    string city = 3;
+    string street = 4;
+    string zip = 5;
+}
+
+message Items {
+    repeated Item items = 1;
+}
+
+message Item {
+    string name = 1;
+    uint32 quantity = 2;
 }

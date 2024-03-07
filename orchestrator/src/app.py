@@ -1,112 +1,83 @@
 import logging
-import sys
-import os
 import asyncio
+import uuid
+import json
 
-import grpc_gen.fraud_detection_pb2 as fraud_detection
-import grpc_gen.fraud_detection_pb2_grpc as fraud_detection_grpc
-import grpc_gen.suggestions_pb2 as suggestions
-import grpc_gen.suggestions_pb2_grpc as suggestions_grpc
-import grpc_gen.transaction_verification_pb2 as transaction_verification
-import grpc_gen.transaction_verification_pb2_grpc as transaction_verification_grpc
+import service.orchestrator_service as orchestrator_service
 
+from exception.validation_error import FraudDetectionError
+from exception.validation_error import TransactionVerificationError
 
-import grpc
+from enum import Enum
 
-
-def check_for_fraud(name='you'):
-    # Establish a connection with the fraud-detection gRPC service.
-    with grpc.insecure_channel('fraud_detection:50051') as channel:
-        # Create a stub object.
-        stub = fraud_detection_grpc.FraudDetectionService(channel)
-        # Call the service through the stub object.
-        response = stub.DetectFraud(fraud_detection.FraudDetectionRequest(name=name))
-    return response.success
-
-
-def verify_transaction(id='0'):
-    # Establish a connection with the fraud-detection gRPC service.
-    with grpc.insecure_channel('fraud_detection:50052') as channel:
-        # Create a stub object.
-        stub = fraud_detection_grpc.TransactionVerificationService(channel)
-        # Call the service through the stub object.
-        response = stub.VerifyTransaction(fraud_detection.TransactionVerificationRequest(id=id))
-    return response.success
-
-
-def check_for_suggestions(name='you'):
-    # Establish a connection with the fraud-detection gRPC service.
-    with grpc.insecure_channel('fraud_detection:50053') as channel:
-        # Create a stub object.
-        stub = fraud_detection_grpc.SuggestionService(channel)
-        # Call the service through the stub object.
-        response = stub.GetSuggestions(fraud_detection.GetSuggestionsRequest(name=name))
-    return response.suggestedBooks.title
-
-
-# Import Flask.
-# Flask is a web framework for Python.
-# It allows you to build a web application quickly.
-# For more information, see https://flask.palletsprojects.com/en/latest/
-from flask import Flask, request
+from flask import Flask, request, Response
 from flask_cors import CORS
 
-# Create a simple Flask app.
 app = Flask(__name__)
-# Enable CORS for the app.
 CORS(app)
 
-
-# Define a GET endpoint.
-@app.route('/', methods=['GET'])
-def index():
-    """
-    Responds with 'Hello, [name]' when a GET request is made to '/' endpoint.
-    """
-    # Test the fraud-detection gRPC service.
-    response = ""
-    # Return the response.
-    return response
-
+class OrderStatus(Enum):
+    ACCEPTED = 'Order Accepted'
+    REJECTED = 'Order Rejected'
 
 @app.route('/checkout', methods=['POST'])
-def checkout():
+async def checkout():
     """
     Responds with a JSON object containing the order ID, status, and suggested books.
     """
 
-    async def fraud():
-        logging.info(f"Checking for fraud for {request.json['name']}")
-        is_fraud = check_for_fraud(request.json["name"])
-        logging.info(f"Is fraudulent: {is_fraud}")
+    data = request.json
+    logging.debug(f"Request Data: {data}")
 
-    async def transaction():
-        logging.info(f"Verifying transaction {request.json['name']}")
-        transaction_verified = verify_transaction(request.json["ID"])
-        logging.info(f"Transaction verified: {transaction_verified}")
 
-    async def suggestions():
-        logging.info(f"Checking for book suggestions for {request.json['name']}")
-        suggested_book = check_for_suggestions(request.json["name"])
-        logging.info(f"Book {suggested_book} suggested for {request.json['name']}")
+    results = await asyncio.gather(orchestrator_service.detect_fraud(data['creditCard'],
+                                                           data['billingAddress']),
+                         orchestrator_service.verify_transaction(data['creditCard'],
+                                                                 data['billingAddress'],
+                                                                 data['items']),
+                         orchestrator_service.get_suggestions(data['items']))
+    
+    order_id = 12345
+    status = OrderStatus.ACCEPTED
+    suggested_books = [{'bookId': book.book_id, 'title': book.title, 'author': book.author}\
+                        for book in results[2]]
 
-    # Print request object data
-    logging.debug(f"Request Data: {request.json}")
+    if not results[0] or not results[1]:
+        status = OrderStatus.REJECTED
+        suggested_books = []
 
-    asyncio.gather(fraud(), transaction(), suggestions())
-
-    # Dummy response following the provided YAML specification for the bookstore
-    order_status_response = {
-        'orderId': '12345',
-        'status': 'Order Approved',
-        'suggestedBooks': [
-            {'bookId': '123', 'title': 'Dummy Book 1', 'author': 'Author 1'},
-            {'bookId': '456', 'title': 'Dummy Book 2', 'author': 'Author 2'}
-        ]
+    return {
+        'orderId': str(order_id),
+        'status': status.value,
+        'suggestedBooks': suggested_books
     }
 
-    return order_status_response
+@app.errorhandler(FraudDetectionError)
+def fraud_detection_error(e: FraudDetectionError):
+    id = str(uuid.uuid4())
+    logging.error(f'Fraud detection failed {id}', e)
+    res = {"error": 
+        {id: str(e)}
+    }
+    return Response(status=e.status_code, mimetype="application/json", response=json.dumps(res))
 
+@app.errorhandler(TransactionVerificationError)
+def fraud_detection_error(e: TransactionVerificationError):
+    id = str(uuid.uuid4())
+    logging.error(f'Transaction verification failed {id}', e)
+    res = {"error": 
+        {id: str(e)}
+    }
+    return Response(status=e.status_code, mimetype="application/json", response=json.dumps(res))
+
+@app.errorhandler(Exception)
+def general_exception(e: Exception):
+    id = str(uuid.uuid4())
+    logging.error(f'Internal error {id}', e)
+    res = {"error": 
+        {id: str(e)}
+    }
+    return Response(status=500, mimetype="application/json", response=json.dumps(res))
 
 if __name__ == '__main__':
     logging.basicConfig(format="%(asctime)s | %(levelname)s | %(processName)s| %(message)s", level=logging.INFO)

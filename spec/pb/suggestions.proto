@@ -7,7 +7,7 @@ service SuggestionService {
 }
 
 message GetSuggestionsRequest {
-    string name = 1;
+    string title = 1;
 }
 
 message GetSuggestionsResponse {
@@ -15,7 +15,9 @@ message GetSuggestionsResponse {
 }
 
 message Book {
-    string title = 1;
+    uint32 book_id = 1;
+    string title = 2;
+    string author = 3;
 }
 
 
