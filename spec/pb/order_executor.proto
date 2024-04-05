@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package order_executor;
+
+service OrderExecutorService {
+    rpc HeartBeat (HeartBeatRequest) returns (Empty);
+    rpc Election (RunElectionRequest) returns (Empty);
+}
+
+message HeartBeatRequest {
+    uint32 process_id = 1;
+}
+
+message RunElectionRequest {
+    uint32 process_id = 1;
+}
+
+message Empty {}
+

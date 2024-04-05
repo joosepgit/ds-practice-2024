@@ -1,4 +1,3 @@
-version: '3'
 services:
 
   frontend:
@@ -65,3 +64,33 @@ services:
       - PYTHONPATH=/app/suggestions/src
     volumes:
       - ./suggestions/src:/app/suggestions/src
+
+  order_queue:
+    build:
+      context: ./
+      dockerfile: ./order_queue/Dockerfile
+    ports:
+      - 50054:50054
+    environment:
+      - PYTHONUNBUFFERED=TRUE
+      - PYTHONFILE=/app/order_queue/src/app.py
+      - PYTHONPATH=/app/order_queue/src
+    volumes:
+      - ./order_queue/src:/app/order_queue/src
+
+  order_executor:
+    build:
+      context: ./
+      dockerfile: ./order_executor/Dockerfile
+    deploy:
+      mode: replicated
+      replicas: 3
+    ports:
+      - "50055-50057:50055"
+    environment:
+      - INSTANCE_ID="${INSTANCE_INDEX}"
+      - PYTHONUNBUFFERED=TRUE
+      - PYTHONFILE=/app/order_executor/src/app.py
+      - PYTHONPATH=/app/order_executor/src
+    volumes:
+      - ./order_executor/src:/app/order_executor/src

@@ -39,3 +39,5 @@ Transaction verification verifies the input data. It checks several conditions t
 ### Suggestions
 
 Suggestions always returns 3 suggestions with a random id, title and author. Each of which have been randomly selected from 4 possible options
+
+
