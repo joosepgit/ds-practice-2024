@@ -29,7 +29,7 @@ class FraudDetectionService(fraud_detection_grpc.FraudDetectionServiceServicer):
 
 
 def serve():
-    logging.basicConfig(format="%(asctime)s | %(levelname)s | %(processName)s| %(message)s", level=logging.INFO)
+    logging.basicConfig(format="%(asctime)s | %(levelname)s | %(processName)s | %(message)s", level=logging.INFO)
     logging.info("Starting the fraud detection server")
     server = grpc.server(futures.ThreadPoolExecutor())
     fraud_detection_grpc.add_FraudDetectionServiceServicer_to_server(FraudDetectionService(), server)
