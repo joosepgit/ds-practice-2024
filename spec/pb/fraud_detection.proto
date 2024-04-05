@@ -3,17 +3,38 @@ syntax = "proto3";
 package fraud_detection;
 
 service FraudDetectionService {
+    rpc Initialize (InitializationRequest) returns (InitializationResponse); 
     rpc DetectFraud (FraudDetectionRequest) returns (FraudDetectionResponse);
 }
 
+message InitializationRequest {
+    OrderUUID order_id = 1;
+    CreditCard card_information = 2;
+    BillingAddress billing_address = 3;
+}
+
+message InitializationResponse {
+    bool success = 1;
+    string additional_info = 2;
+}
+
 message FraudDetectionRequest {
-    CreditCard card_information = 1;
-    BillingAddress billing_address = 2;
+    OrderUUID order_id = 1;
+    VectorClock vector_clock = 2;
 }
 
 message FraudDetectionResponse {
     bool success = 1;
     string additional_info = 2;
+    VectorClock vector_clock = 3;
+}
+
+message OrderUUID {
+    string value = 1;
+}
+
+message VectorClock {
+    map<string, uint32> clocks = 1;
 }
 
 message CreditCard {

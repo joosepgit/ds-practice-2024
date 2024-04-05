@@ -3,15 +3,50 @@ syntax = "proto3";
 package suggestions;
 
 service SuggestionService {
+    rpc Initialize (InitializationRequest) returns (InitializationResponse); 
+    rpc GenerateSuggestions (GenerateSuggestionsRequest) returns (GenerateSuggestionsResponse);
     rpc GetSuggestions (GetSuggestionsRequest) returns (GetSuggestionsResponse);
 }
 
+message InitializationRequest {
+    OrderUUID order_id = 1;
+    string title = 2;
+}
+
+message InitializationResponse {
+    bool success = 1;
+    string additional_info = 2;
+}
+
+message GenerateSuggestionsRequest {
+    OrderUUID order_id = 1;
+    VectorClock vector_clock = 2;
+}
+
+message GenerateSuggestionsResponse {
+    bool success = 1;
+    string additional_info = 2;
+    VectorClock vector_clock = 3;
+}
+
 message GetSuggestionsRequest {
-    string title = 1;
+    OrderUUID order_id = 1;
+    VectorClock vector_clock = 2;
 }
 
 message GetSuggestionsResponse {
-    repeated Book suggestedBooks = 1;
+    bool success = 1;
+    string additional_info = 2;
+    repeated Book suggested_books = 3;
+    VectorClock vector_clock = 4;
+}
+
+message OrderUUID {
+    string value = 1;
+}
+
+message VectorClock {
+    map<string, uint32> clocks = 1;
 }
 
 message Book {

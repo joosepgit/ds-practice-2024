@@ -1,5 +1,7 @@
 import logging
 
+import grpc_gen.fraud_detection_pb2 as fraud_detection
+import grpc_gen.fraud_detection_pb2_grpc as fraud_detection_grpc
 import grpc_gen.transaction_verification_pb2 as transaction_verification
 import grpc_gen.transaction_verification_pb2_grpc as transaction_verification_grpc
 
@@ -8,36 +10,95 @@ import grpc
 from concurrent import futures
 from datetime import datetime
 
+from cachetools import TTLCache
+
+SERVICE_IDENTIFIER = "TRANSACTION_VERIFICATION"
+
+vector_clock_cache = TTLCache(maxsize=100, ttl=60)
+
 class TransactionVerificationService(transaction_verification_grpc.TransactionVerificationServiceServicer):
+
+    def Initialize(self, request: transaction_verification.InitializationRequest, context):
+        logging.info("Initializing transaction verification")
+
+        response = transaction_verification.InitializationResponse()
+
+        vector_clock = {SERVICE_IDENTIFIER : 0}
+        vector_clock_cache[request.order_id.value] = [vector_clock, request]
+
+        response.success = True
+        response.additional_info = ""
+        logging.info(f"Successfully initialized transaction verification with vector clock: {vector_clock} \
+                      and data: {request}")
+        return response
+
     def VerifyTransaction(self, request: transaction_verification.TransactionVerificationRequest, context):
         logging.info(f"Verifying transaction data: {request}")
+
+        self.update_vector_clock(request.order_id.value, dict(request.vector_clock.clocks))
+
         response = transaction_verification.TransactionVerificationResponse()
 
-        logging.info(f'Validating credit card information')
-        credit_card_success, credit_card_msg = self.validate_credit_card(request.card_information)
-        if not credit_card_success:
-            response.success = False
-            response.additional_info = credit_card_msg
-            return response
-    
-        logging.info(f'Validating billing address')
-        billing_address_success, billing_address_msg = self.validate_billing_address(request.billing_address)
-        if not billing_address_success:
-            response.success = False
-            response.additional_info = billing_address_msg
-            return response
-        
+        cached_data: tuple[dict, transaction_verification.InitializationRequest] = vector_clock_cache[request.order_id.value]
+        vector_clock, data = cached_data
+
         logging.info(f'Validating cart contents')
-        cart_success, cart_msg = self.validate_cart(request.items)
+        cart_success, cart_msg = self.validate_cart(data.items)
         if not cart_success:
             response.success = False
             response.additional_info = cart_msg
             return response
         
-        response.success = True
-        response.additional_info = f'{credit_card_msg}; {billing_address_msg}'
+        vector_clock[SERVICE_IDENTIFIER] += 1
+        vector_clock = self.update_vector_clock(request.order_id.value, vector_clock)
+
+        logging.info(f'Validating billing address')
+        billing_address_success, billing_address_msg = self.validate_billing_address(data.billing_address)
+        if not billing_address_success:
+            response.success = False
+            response.additional_info = billing_address_msg
+            return response
+        
+        vector_clock[SERVICE_IDENTIFIER] += 1
+        vector_clock = self.update_vector_clock(request.order_id.value, vector_clock)
+
+        logging.info(f'Validating credit card information')
+        credit_card_success, credit_card_msg = self.validate_credit_card(data.card_information)
+        if not credit_card_success:
+            response.success = False
+            response.additional_info = credit_card_msg
+            return response
+        
+        vector_clock[SERVICE_IDENTIFIER] += 1
+        vector_clock = self.update_vector_clock(request.order_id.value, vector_clock)
+
+        fraud_detection_response: fraud_detection.FraudDetectionResponse = self.detect_fraud(request.order_id.value, vector_clock)
+        vector_clock = self.update_vector_clock(request.order_id.value, dict(fraud_detection_response.vector_clock.clocks))
+        
+        response.vector_clock.clocks.update(vector_clock_cache[request.order_id.value][0])
+        
+        response.success = fraud_detection_response.success
+        response.additional_info = f'\nResult:\n\
+            Transaction Verification:\n\
+            \tCart: {cart_msg};\n\
+            \tCredit card: {credit_card_msg};\n\
+            \tBilling address: {billing_address_msg};\n\
+            Fraud detection:\n\
+            \t{fraud_detection_response.additional_info}'
         logging.info(f'Successfully verified transaction, response {response}')
         return response
+    
+    def update_vector_clock(self, order_id: int, vector_clock_in: dict):
+        logging.info("Updating vector clock")
+        vector_clock_curr = vector_clock_cache[order_id][0]
+        for k in vector_clock_in.keys():
+            if k not in vector_clock_curr.keys():
+                vector_clock_curr[k] = vector_clock_in[k]
+            vector_clock_curr[k] = max(vector_clock_curr[k], vector_clock_in[k])
+        
+        vector_clock_cache[order_id][0] = vector_clock_curr
+        logging.info(f"Successfully updated vector clock: {vector_clock_curr}")
+        return vector_clock_cache[order_id][0]
     
     def validate_billing_address(self, billing_address: transaction_verification.BillingAddress):
         # Address information
@@ -56,7 +117,7 @@ class TransactionVerificationService(transaction_verification_grpc.TransactionVe
         if len(billing_address.zip) != 5:
             return False, "ZIP code should contain exactly 5 numbers."
 
-        return True, ""
+        return True, "OK"
     
     def validate_credit_card(self, credit_card: transaction_verification.CreditCard):
         # CVV
@@ -79,12 +140,30 @@ class TransactionVerificationService(transaction_verification_grpc.TransactionVe
         if len(credit_card.card_number) < 8 or len(credit_card.card_number) > 19:
             return False, "Card number should contain at least 8 and at most 19 numbers."
         
-        return True, ""
+        return True, "OK"
     
     def validate_cart(self, cart: transaction_verification.Items):
         if len(cart.items) == 0:
             return False, "Cart can not be empty."
-        return True, ""
+        return True, "OK"
+    
+    def detect_fraud(self, order_id: str, vector_clock: dict):
+
+        order_id_proto = fraud_detection.OrderUUID()
+        order_id_proto.value = order_id
+
+        vector_clock_proto = fraud_detection.VectorClock()
+        for k, v in vector_clock.items():
+            vector_clock_proto.clocks[k] = v
+
+        with grpc.insecure_channel('fraud_detection:50051') as channel:
+            stub = fraud_detection_grpc.FraudDetectionServiceStub(channel)
+            response: fraud_detection.FraudDetectionResponse = \
+                stub.DetectFraud(fraud_detection.FraudDetectionRequest(
+                    order_id=order_id_proto,
+                    vector_clock=vector_clock_proto))
+            
+        return response
 
 def serve():
     logging.basicConfig(format="%(asctime)s | %(levelname)s | %(processName)s| %(message)s", level=logging.INFO)

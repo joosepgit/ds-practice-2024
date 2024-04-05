@@ -7,13 +7,35 @@ import grpc_gen.suggestions_pb2_grpc as suggestions_grpc
 import grpc
 from concurrent import futures
 
+from cachetools import TTLCache
+
+SERVICE_IDENTIFIER = "SUGGESTIONS"
+
+vector_clock_cache = TTLCache(maxsize=100, ttl=60)
+
 class SuggestionService(suggestions_grpc.SuggestionServiceServicer):
+    def Initialize(self, request: suggestions.InitializationRequest, context):
+        logging.info("Initializing suggestions")
+
+        response = suggestions.InitializationResponse()
+
+        vector_clock = {SERVICE_IDENTIFIER : 0}
+        vector_clock_cache[request.order_id.value] = [vector_clock, request]
+
+        response.success = True
+        response.additional_info = ""
+        logging.info(f"Successfully initialized suggestions with vector clock: {vector_clock} \
+                      and data: {request}")
+        return response
+
     def GetSuggestions(self, request: suggestions.GetSuggestionsRequest, context):
         logging.info(f'Fetching suggestions with request: {request}')
         response = suggestions.GetSuggestionsResponse()
         for _ in range(3):
-            response.suggestedBooks.append(self.get_random_suggestion())
+            response.suggested_books.append(self.get_random_suggestion())
         logging.info(f'Got suggestions: {response}')
+        response.success = True
+        response.additional_info = ""
         return response
     
     def get_random_suggestion(self):

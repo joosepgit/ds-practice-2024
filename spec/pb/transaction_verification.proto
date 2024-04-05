@@ -3,18 +3,39 @@ syntax = "proto3";
 package transaction_verification;
 
 service TransactionVerificationService {
+    rpc Initialize (InitializationRequest) returns (InitializationResponse); 
     rpc VerifyTransaction (TransactionVerificationRequest) returns (TransactionVerificationResponse);
 }
 
+message InitializationRequest {
+    OrderUUID order_id = 1;
+    CreditCard card_information = 2;
+    BillingAddress billing_address = 3;
+    Items items = 4;
+}
+
+message InitializationResponse {
+    bool success = 1;
+    string additional_info = 2;
+}
+
 message TransactionVerificationRequest {
-    CreditCard card_information = 1;
-    BillingAddress billing_address = 2;
-    Items items = 3;
+    OrderUUID order_id = 1;
+    VectorClock vector_clock = 2;
 }
 
 message TransactionVerificationResponse {
     bool success = 1;
     string additional_info = 2;
+    VectorClock vector_clock = 3;
+}
+
+message OrderUUID {
+    string value = 1;
+}
+
+message VectorClock {
+    map<string, uint32> clocks = 1;
 }
 
 message CreditCard {

@@ -10,11 +10,16 @@ import grpc_gen.transaction_verification_pb2_grpc as transaction_verification_gr
 
 from exception.validation_error import FraudDetectionError
 from exception.validation_error import TransactionVerificationError
+from exception.validation_error import CheckoutError
+from exception.validation_error import SuggestionsError
 
 
-async def detect_fraud(credit_card, billing_address) -> bool:
-    logging.info(f'Checking for fraud with credit card: {credit_card}\
+async def init_fraud_detection(order_id, credit_card, billing_address) -> None:
+    logging.info(f'Initializing fraud detection with credit card: {credit_card}\
                    and billing address: {billing_address}')
+    
+    order_id_proto = fraud_detection.OrderUUID()
+    order_id_proto.value = order_id
     
     credit_card_grpc_proto = fraud_detection.CreditCard()
     credit_card_grpc_proto.card_number = credit_card['number']
@@ -30,22 +35,25 @@ async def detect_fraud(credit_card, billing_address) -> bool:
 
     with grpc.insecure_channel('fraud_detection:50051') as channel:
         stub = fraud_detection_grpc.FraudDetectionServiceStub(channel)
-        response: fraud_detection.FraudDetectionResponse = \
-            stub.DetectFraud(fraud_detection.FraudDetectionRequest(
+        response: fraud_detection.InitializationResponse = \
+            stub.Initialize(fraud_detection.InitializationRequest(
+                order_id=order_id_proto,
                 card_information=credit_card_grpc_proto,
                 billing_address=billing_address_grpc_proto))
     
     if not response.success:
         raise FraudDetectionError(response.additional_info)
     
-    logging.info(f'Fraud detection successfully validated checkout')
+    logging.info(f'Fraud detection initialized successfully')
     logging.info(f'Additional information: {response.additional_info}')
-    return response.success
 
-async def verify_transaction(credit_card, billing_address, items) -> bool:
-    logging.info(f"Verifying transaction with: {credit_card};\
+async def init_transaction_verification(order_id, credit_card, billing_address, items) -> None:
+    logging.info(f"Initializing transaction verification with: {credit_card};\
                    billing address: {billing_address};\
                    items: {items}")
+    
+    order_id_proto = transaction_verification.OrderUUID()
+    order_id_proto.value = order_id
 
     credit_card_grpc_proto = transaction_verification.CreditCard()
     credit_card_grpc_proto.card_number = credit_card['number']
@@ -66,8 +74,9 @@ async def verify_transaction(credit_card, billing_address, items) -> bool:
 
     with grpc.insecure_channel('transaction_verification:50052') as channel:
         stub = transaction_verification_grpc.TransactionVerificationServiceStub(channel)
-        response: transaction_verification.TransactionVerificationResponse = \
-            stub.VerifyTransaction(transaction_verification.TransactionVerificationRequest(
+        response: transaction_verification.InitializationResponse = \
+            stub.Initialize(transaction_verification.InitializationRequest(
+                order_id=order_id_proto,
                 card_information=credit_card_grpc_proto,
                 billing_address=billing_address_grpc_proto,
                 items=items_grpc_proto))
@@ -75,16 +84,74 @@ async def verify_transaction(credit_card, billing_address, items) -> bool:
     if not response.success:
         raise TransactionVerificationError(response.additional_info)
     
-    logging.info(f'Transaction verification succeeded')
+    logging.info(f'Transaction verification initialized successfully')
     logging.info(f'Additional information: {response.additional_info}')
-    return response.success
 
-async def get_suggestions(books):
-    logging.info(f"Fetching for book suggestions based on {books}")
+async def init_suggestions(order_id, books):
+    logging.info(f"Initializing book suggestions based on {books}")
+
+    order_id_proto = suggestions.OrderUUID()
+    order_id_proto.value = order_id
+
+    with grpc.insecure_channel('suggestions:50053') as channel:
+        stub = suggestions_grpc.SuggestionServiceStub(channel)
+        response: suggestions.InitializationResponse = \
+            stub.Initialize(suggestions.InitializationRequest(
+                order_id=order_id_proto,
+                title=books[0]['name']))
+        
+    if not response.success:
+        raise SuggestionsError(response.additional_info)
+        
+    logging.info(f"Suggestions initialized successfully")
+    
+async def checkout(order_id: str) -> None:
+
+    order_id_proto = transaction_verification.OrderUUID()
+    order_id_proto.value = order_id
+
+    vector_clock_proto = transaction_verification.VectorClock()
+
+    with grpc.insecure_channel('transaction_verification:50052') as channel:
+        stub = transaction_verification_grpc.TransactionVerificationServiceStub(channel)
+        response: transaction_verification.TransactionVerificationResponse = \
+            stub.VerifyTransaction(transaction_verification.TransactionVerificationRequest(
+                order_id=order_id_proto,
+                vector_clock=vector_clock_proto))
+        
+    if not response.success:
+        raise CheckoutError(response.additional_info)
+    
+    logging.info(f"Successfully checked out order {order_id}")
+    return dict(response.vector_clock.clocks)
+
+async def get_suggestions(order_id: str, post_success_vector_clock: dict):
+    logging.info(f"Getting book suggestions for successful order {order_id}")
+
+    order_id_proto = suggestions.OrderUUID()
+    order_id_proto.value = order_id
+
+    post_success_vector_clock_proto = suggestions.VectorClock()
+    for k, v in post_success_vector_clock.items():
+        post_success_vector_clock_proto.clocks[k] = v
+
     with grpc.insecure_channel('suggestions:50053') as channel:
         stub = suggestions_grpc.SuggestionServiceStub(channel)
         response: suggestions.GetSuggestionsResponse = \
             stub.GetSuggestions(suggestions.GetSuggestionsRequest(
-                title=books[0]['name']))
-    logging.info(f"Fetched suggestion: {response.suggestedBooks}")
-    return response.suggestedBooks
+                order_id=order_id_proto,
+                vector_clock=post_success_vector_clock_proto))
+        
+    if not response.success:
+        raise SuggestionsError(response.additional_info)
+    
+    suggested_books = list(map(
+        lambda book: {'bookId': book.book_id, 'title': book.title, 'author': book.author},
+        response.suggested_books)
+    )
+    
+    logging.info(f"Successfully fetched suggestions {response.suggested_books}")
+    return suggested_books, dict(response.vector_clock.clocks)
+
+async def clear_data(order_id: str, final_vector_clock: dict) -> None:
+    logging.info(f"Clearing all data related to order {order_id}")
