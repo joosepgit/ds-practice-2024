@@ -73,6 +73,12 @@ class TransactionVerificationService(transaction_verification_grpc.TransactionVe
         vector_clock = self.update_vector_clock(request.order_id.value, vector_clock)
 
         fraud_detection_response: fraud_detection.FraudDetectionResponse = self.detect_fraud(request.order_id.value, vector_clock)
+
+        # Increment self after sending a message to fraud detection
+        vector_clock[SERVICE_IDENTIFIER] += 1
+        vector_clock = self.update_vector_clock(request.order_id.value, vector_clock)
+
+        # Update based on fraud detection response
         vector_clock = self.update_vector_clock(request.order_id.value, dict(fraud_detection_response.vector_clock.clocks))
         
         response.vector_clock.clocks.update(vector_clock_cache[request.order_id.value][0])
@@ -83,8 +89,7 @@ class TransactionVerificationService(transaction_verification_grpc.TransactionVe
             \tCart: {cart_msg};\n\
             \tCredit card: {credit_card_msg};\n\
             \tBilling address: {billing_address_msg};\n\
-            Fraud detection:\n\
-            \t{fraud_detection_response.additional_info}'
+            {fraud_detection_response.additional_info}'
         logging.info(f'Successfully verified transaction, response {response}')
         return response
     
@@ -153,8 +158,7 @@ class TransactionVerificationService(transaction_verification_grpc.TransactionVe
         order_id_proto.value = order_id
 
         vector_clock_proto = fraud_detection.VectorClock()
-        for k, v in vector_clock.items():
-            vector_clock_proto.clocks[k] = v
+        vector_clock_proto.clocks.update(vector_clock)
 
         with grpc.insecure_channel('fraud_detection:50051') as channel:
             stub = fraud_detection_grpc.FraudDetectionServiceStub(channel)

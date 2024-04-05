@@ -1,6 +1,8 @@
 import grpc
 import logging
 
+import grpc_gen.suggestions_pb2 as suggestions
+import grpc_gen.suggestions_pb2_grpc as suggestions_grpc
 import grpc_gen.fraud_detection_pb2 as fraud_detection
 import grpc_gen.fraud_detection_pb2_grpc as fraud_detection_grpc
 
@@ -56,10 +58,21 @@ class FraudDetectionService(fraud_detection_grpc.FraudDetectionServiceServicer):
         vector_clock[SERVICE_IDENTIFIER] += 1
         vector_clock = self.update_vector_clock(request.order_id.value, vector_clock)
 
+        suggestions_response: suggestions.GenerateSuggestionsResponse = self.generate_suggestions(request.order_id.value, vector_clock)
+
+        # Increment self after sending a message to suggestions
+        vector_clock[SERVICE_IDENTIFIER] += 1
+        vector_clock = self.update_vector_clock(request.order_id.value, vector_clock)
+
+        # Update based on suggestions response
+        vector_clock = self.update_vector_clock(request.order_id.value, dict(suggestions_response.vector_clock.clocks))
+
         response.vector_clock.clocks.update(vector_clock_cache[request.order_id.value][0])
         
-        response.success = True
-        response.additional_info = 'OK'
+        response.success = suggestions_response.success
+        response.additional_info = f'Fraud detection:\n\
+            \tOK;\n\
+            {suggestions_response.additional_info}'
         logging.info(f'Did not detect fraud, response {response}')
         return response
     
@@ -75,7 +88,23 @@ class FraudDetectionService(fraud_detection_grpc.FraudDetectionServiceServicer):
         vector_clock_cache[order_id][0] = vector_clock_curr
         logging.info(f"Successfully updated vector clock: {vector_clock_curr}")
         return vector_clock_cache[order_id][0]
+    
+    def generate_suggestions(self, order_id: str, vector_clock: dict):
 
+        order_id_proto = suggestions.OrderUUID()
+        order_id_proto.value = order_id
+
+        vector_clock_proto = suggestions.VectorClock()
+        vector_clock_proto.clocks.update(vector_clock)
+
+        with grpc.insecure_channel('suggestions:50053') as channel:
+            stub = suggestions_grpc.SuggestionServiceStub(channel)
+            response: suggestions.GenerateSuggestionsResponse = \
+                stub.GenerateSuggestions(suggestions.GenerateSuggestionsRequest(
+                    order_id=order_id_proto,
+                    vector_clock=vector_clock_proto))
+
+        return response
 
 def serve():
     logging.basicConfig(format="%(asctime)s | %(levelname)s | %(processName)s| %(message)s", level=logging.INFO)

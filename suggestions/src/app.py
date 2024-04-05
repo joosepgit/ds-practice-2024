@@ -27,16 +27,67 @@ class SuggestionService(suggestions_grpc.SuggestionServiceServicer):
         logging.info(f"Successfully initialized suggestions with vector clock: {vector_clock} \
                       and data: {request}")
         return response
+    
+    def GenerateSuggestions(self, request: suggestions.GenerateSuggestionsRequest, context):
+        logging.info(f"Generating suggestions for order {request.order_id.value}")
+
+        self.update_vector_clock(request.order_id.value, dict(request.vector_clock.clocks))
+        
+        response = suggestions.GenerateSuggestionsResponse()
+
+        cached_data: tuple[dict, suggestions.InitializationRequest] = vector_clock_cache[request.order_id.value]
+        vector_clock, data = cached_data
+
+        logging.info(f"Generating random suggestions based on data: {data}")
+        generated_suggestions = suggestions.GetSuggestionsResponse()
+        for _ in range(3):
+            generated_suggestions.suggested_books.append(self.get_random_suggestion())
+        logging.info(f"Generated suggestions: {generated_suggestions}")
+
+        vector_clock_cache[request.order_id.value][1] = generated_suggestions
+
+        vector_clock[SERVICE_IDENTIFIER] += 1
+        vector_clock = self.update_vector_clock(request.order_id.value, vector_clock)
+
+        response.vector_clock.clocks.update(vector_clock_cache[request.order_id.value][0])
+        
+        response.success = True
+        response.additional_info = f'Suggestions:\n\
+            \tOK;\n'
+
+        return response
 
     def GetSuggestions(self, request: suggestions.GetSuggestionsRequest, context):
         logging.info(f'Fetching suggestions with request: {request}')
-        response = suggestions.GetSuggestionsResponse()
-        for _ in range(3):
-            response.suggested_books.append(self.get_random_suggestion())
+
+        self.update_vector_clock(request.order_id.value, dict(request.vector_clock.clocks))
+
+        cached_data: tuple[dict, suggestions.GetSuggestionsResponse] = vector_clock_cache[request.order_id.value]
+        vector_clock, response = cached_data
+
         logging.info(f'Got suggestions: {response}')
+
+        vector_clock[SERVICE_IDENTIFIER] += 1
+        vector_clock = self.update_vector_clock(request.order_id.value, vector_clock)
+        
+        response.vector_clock.clocks.update(vector_clock_cache[request.order_id.value][0])
+
         response.success = True
-        response.additional_info = ""
+        response.additional_info = 'OK'
         return response
+    
+    def update_vector_clock(self, order_id: int, vector_clock_in: dict):
+        logging.info("Updating vector clock")
+        vector_clock_curr = vector_clock_cache[order_id][0]
+
+        for k in vector_clock_in.keys():
+            if k not in vector_clock_curr.keys():
+                vector_clock_curr[k] = vector_clock_in[k]
+            vector_clock_curr[k] = max(vector_clock_curr[k], vector_clock_in[k])
+        
+        vector_clock_cache[order_id][0] = vector_clock_curr
+        logging.info(f"Successfully updated vector clock: {vector_clock_curr}")
+        return vector_clock_cache[order_id][0]
     
     def get_random_suggestion(self):
         ids = [123, 234, 345, 456]
@@ -47,7 +98,6 @@ class SuggestionService(suggestions_grpc.SuggestionServiceServicer):
         suggested_book.title = random.choice(titles)
         suggested_book.author = random.choice(authors)
         return suggested_book
-
 
 def serve():
     logging.basicConfig(format="%(asctime)s | %(levelname)s | %(processName)s| %(message)s", level=logging.INFO)
