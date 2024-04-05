@@ -132,8 +132,7 @@ async def get_suggestions(order_id: str, post_success_vector_clock: dict):
     order_id_proto.value = order_id
 
     post_success_vector_clock_proto = suggestions.VectorClock()
-    for k, v in post_success_vector_clock.items():
-        post_success_vector_clock_proto.clocks[k] = v
+    post_success_vector_clock_proto.clocks.update(post_success_vector_clock)
 
     with grpc.insecure_channel('suggestions:50053') as channel:
         stub = suggestions_grpc.SuggestionServiceStub(channel)
@@ -153,5 +152,47 @@ async def get_suggestions(order_id: str, post_success_vector_clock: dict):
     logging.info(f"Successfully fetched suggestions {response.suggested_books}")
     return suggested_books, dict(response.vector_clock.clocks)
 
-async def clear_data(order_id: str, final_vector_clock: dict) -> None:
-    logging.info(f"Clearing all data related to order {order_id}")
+async def clear_transaction_verification_data(order_id: str, final_vector_clock: dict):
+    logging.info(f"Clearing order {order_id} data from transaction verification")
+
+    transaction_verification_order_id_proto = transaction_verification.OrderUUID()
+    transaction_verification_order_id_proto.value = order_id
+
+    transaction_verification_final_vector_clock_proto = transaction_verification.VectorClock()
+    transaction_verification_final_vector_clock_proto.clocks.update(final_vector_clock)
+
+    with grpc.insecure_channel('transaction_verification:50052') as channel:
+        stub = transaction_verification_grpc.TransactionVerificationServiceStub(channel)
+        stub.ClearData(transaction_verification.ClearDataRequest(
+                order_id=transaction_verification_order_id_proto,
+                vector_clock=transaction_verification_final_vector_clock_proto))
+        
+async def clear_fraud_detection_data(order_id: str, final_vector_clock: dict):
+    logging.info(f"Clearing order {order_id} data from fraud detection")
+        
+    fraud_order_id_proto = fraud_detection.OrderUUID()
+    fraud_order_id_proto.value = order_id
+
+    fraud_final_vector_clock_proto = fraud_detection.VectorClock()
+    fraud_final_vector_clock_proto.clocks.update(final_vector_clock)
+
+    with grpc.insecure_channel('fraud_detection:50051') as channel:
+        stub = fraud_detection_grpc.FraudDetectionServiceStub(channel)
+        stub.ClearData(fraud_detection.ClearDataRequest(
+                order_id=fraud_order_id_proto,
+                vector_clock=fraud_final_vector_clock_proto))
+        
+async def clear_suggestions_data(order_id: str, final_vector_clock: dict):
+    logging.info(f"Clearing order {order_id} data from suggestions")
+        
+    suggestions_order_id_proto = suggestions.OrderUUID()
+    suggestions_order_id_proto.value = order_id
+
+    suggestions_final_vector_clock_proto = suggestions.VectorClock()
+    suggestions_final_vector_clock_proto.clocks.update(final_vector_clock)
+
+    with grpc.insecure_channel('suggestions:50053') as channel:
+        stub = suggestions_grpc.SuggestionServiceStub(channel)
+        stub.ClearData(suggestions.ClearDataRequest(
+                order_id=suggestions_order_id_proto,
+                vector_clock=suggestions_final_vector_clock_proto))

@@ -6,6 +6,7 @@ service SuggestionService {
     rpc Initialize (InitializationRequest) returns (InitializationResponse); 
     rpc GenerateSuggestions (GenerateSuggestionsRequest) returns (GenerateSuggestionsResponse);
     rpc GetSuggestions (GetSuggestionsRequest) returns (GetSuggestionsResponse);
+    rpc ClearData (ClearDataRequest) returns (ClearDataResponse);
 }
 
 message InitializationRequest {
@@ -40,6 +41,13 @@ message GetSuggestionsResponse {
     repeated Book suggested_books = 3;
     VectorClock vector_clock = 4;
 }
+
+message ClearDataRequest {
+    OrderUUID order_id = 1;
+    VectorClock vector_clock = 2;
+}
+
+message ClearDataResponse {}
 
 message OrderUUID {
     string value = 1;

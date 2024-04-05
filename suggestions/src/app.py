@@ -69,12 +69,25 @@ class SuggestionService(suggestions_grpc.SuggestionServiceServicer):
 
         vector_clock[SERVICE_IDENTIFIER] += 1
         vector_clock = self.update_vector_clock(request.order_id.value, vector_clock)
-        
+
         response.vector_clock.clocks.update(vector_clock_cache[request.order_id.value][0])
 
         response.success = True
         response.additional_info = 'OK'
         return response
+    
+    def ClearData(self, request: suggestions.ClearDataRequest, context):
+        logging.info(f"Clearing data for request {request}")
+        curr_vector_clock: dict = vector_clock_cache[request.order_id.value][0]
+        passed_vector_clock = dict(request.vector_clock.clocks)
+        for k, _ in curr_vector_clock.items():
+            if curr_vector_clock[k] > passed_vector_clock[k]:
+                raise ValueError(f"Final vector clock has a smaller value  than local vector clock for service {k}")
+        
+        logging.debug(f"Current vector clock: {curr_vector_clock}")
+        logging.debug(f"Passed vector clock: {passed_vector_clock}")
+        del vector_clock_cache[request.order_id.value]
+        return suggestions.ClearDataResponse()
     
     def update_vector_clock(self, order_id: int, vector_clock_in: dict):
         logging.info("Updating vector clock")

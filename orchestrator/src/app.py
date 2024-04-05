@@ -62,7 +62,9 @@ async def checkout():
 
     # Broadcasts a message to all services with the final vector clock, indicating
     # to clear all data related to the current order by order id
-    await orchestrator_service.clear_data(order_id, final_vector_clock)
+    asyncio.gather(orchestrator_service.clear_transaction_verification_data(order_id, final_vector_clock),
+                   orchestrator_service.clear_fraud_detection_data(order_id, final_vector_clock),
+                   orchestrator_service.clear_suggestions_data(order_id, final_vector_clock))
 
     return {
         'orderId': str(order_id),

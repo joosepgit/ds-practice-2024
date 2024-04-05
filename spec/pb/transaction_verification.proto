@@ -5,6 +5,7 @@ package transaction_verification;
 service TransactionVerificationService {
     rpc Initialize (InitializationRequest) returns (InitializationResponse); 
     rpc VerifyTransaction (TransactionVerificationRequest) returns (TransactionVerificationResponse);
+    rpc ClearData (ClearDataRequest) returns (ClearDataResponse);
 }
 
 message InitializationRequest {
@@ -29,6 +30,13 @@ message TransactionVerificationResponse {
     string additional_info = 2;
     VectorClock vector_clock = 3;
 }
+
+message ClearDataRequest {
+    OrderUUID order_id = 1;
+    VectorClock vector_clock = 2;
+}
+
+message ClearDataResponse {}
 
 message OrderUUID {
     string value = 1;

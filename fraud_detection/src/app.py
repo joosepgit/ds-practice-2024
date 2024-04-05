@@ -76,6 +76,19 @@ class FraudDetectionService(fraud_detection_grpc.FraudDetectionServiceServicer):
         logging.info(f'Did not detect fraud, response {response}')
         return response
     
+    def ClearData(self, request: fraud_detection.ClearDataRequest, context):
+        logging.info(f"Clearing data for request {request}")
+        curr_vector_clock: dict = vector_clock_cache[request.order_id.value][0]
+        passed_vector_clock = dict(request.vector_clock.clocks)
+        for k, _ in curr_vector_clock.items():
+            if curr_vector_clock[k] > passed_vector_clock[k]:
+                raise ValueError(f"Final vector clock has a smaller value  than local vector clock for service {k}")
+            
+        logging.debug(f"Current vector clock: {curr_vector_clock}")
+        logging.debug(f"Passed vector clock: {passed_vector_clock}")
+        del vector_clock_cache[request.order_id.value]
+        return fraud_detection.ClearDataResponse()
+    
     def update_vector_clock(self, order_id: int, vector_clock_in: dict):
         logging.info("Updating vector clock")
         vector_clock_curr = vector_clock_cache[order_id][0]
