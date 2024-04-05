@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import grpc
 
 import grpc_gen.fraud_detection_pb2 as fraud_detection
@@ -42,6 +43,7 @@ async def init_fraud_detection(order_id, credit_card, billing_address) -> None:
                 billing_address=billing_address_grpc_proto))
     
     if not response.success:
+        await clear_data(order_id, None)
         raise FraudDetectionError(response.additional_info)
     
     logging.info(f'Fraud detection initialized successfully')
@@ -82,6 +84,7 @@ async def init_transaction_verification(order_id, credit_card, billing_address, 
                 items=items_grpc_proto))
     
     if not response.success:
+        await clear_data(order_id, None)
         raise TransactionVerificationError(response.additional_info)
     
     logging.info(f'Transaction verification initialized successfully')
@@ -101,6 +104,7 @@ async def init_suggestions(order_id, books):
                 title=books[0]['name']))
         
     if not response.success:
+        await clear_data(order_id, None)
         raise SuggestionsError(response.additional_info)
         
     logging.info(f"Suggestions initialized successfully")
@@ -120,6 +124,7 @@ async def checkout(order_id: str) -> None:
                 vector_clock=vector_clock_proto))
         
     if not response.success:
+        await clear_data(order_id, None)
         raise CheckoutError(response.additional_info)
     
     logging.info(f"Successfully checked out order {order_id}")
@@ -142,6 +147,7 @@ async def get_suggestions(order_id: str, post_success_vector_clock: dict):
                 vector_clock=post_success_vector_clock_proto))
         
     if not response.success:
+        await clear_data(order_id, None)
         raise SuggestionsError(response.additional_info)
     
     suggested_books = list(map(
@@ -152,6 +158,13 @@ async def get_suggestions(order_id: str, post_success_vector_clock: dict):
     logging.info(f"Successfully fetched suggestions {response.suggested_books}")
     return suggested_books, dict(response.vector_clock.clocks)
 
+async def clear_data(order_id: str, final_vector_clock: dict):
+    logging.info(f"Clearing all data for order {order_id}")
+    await asyncio.gather(clear_transaction_verification_data(order_id, final_vector_clock),
+                   clear_fraud_detection_data(order_id, final_vector_clock),
+                   clear_suggestions_data(order_id, final_vector_clock))
+    logging.info(f"Successfully cleared all data for order {order_id}")
+
 async def clear_transaction_verification_data(order_id: str, final_vector_clock: dict):
     logging.info(f"Clearing order {order_id} data from transaction verification")
 
@@ -159,7 +172,8 @@ async def clear_transaction_verification_data(order_id: str, final_vector_clock:
     transaction_verification_order_id_proto.value = order_id
 
     transaction_verification_final_vector_clock_proto = transaction_verification.VectorClock()
-    transaction_verification_final_vector_clock_proto.clocks.update(final_vector_clock)
+    if final_vector_clock:
+        transaction_verification_final_vector_clock_proto.clocks.update(final_vector_clock)
 
     with grpc.insecure_channel('transaction_verification:50052') as channel:
         stub = transaction_verification_grpc.TransactionVerificationServiceStub(channel)
@@ -174,7 +188,8 @@ async def clear_fraud_detection_data(order_id: str, final_vector_clock: dict):
     fraud_order_id_proto.value = order_id
 
     fraud_final_vector_clock_proto = fraud_detection.VectorClock()
-    fraud_final_vector_clock_proto.clocks.update(final_vector_clock)
+    if final_vector_clock:
+        fraud_final_vector_clock_proto.clocks.update(final_vector_clock)
 
     with grpc.insecure_channel('fraud_detection:50051') as channel:
         stub = fraud_detection_grpc.FraudDetectionServiceStub(channel)
@@ -189,7 +204,8 @@ async def clear_suggestions_data(order_id: str, final_vector_clock: dict):
     suggestions_order_id_proto.value = order_id
 
     suggestions_final_vector_clock_proto = suggestions.VectorClock()
-    suggestions_final_vector_clock_proto.clocks.update(final_vector_clock)
+    if final_vector_clock:
+        suggestions_final_vector_clock_proto.clocks.update(final_vector_clock)
 
     with grpc.insecure_channel('suggestions:50053') as channel:
         stub = suggestions_grpc.SuggestionServiceStub(channel)

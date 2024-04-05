@@ -32,7 +32,7 @@ message FraudDetectionResponse {
 
 message ClearDataRequest {
     OrderUUID order_id = 1;
-    VectorClock vector_clock = 2;
+    optional VectorClock vector_clock = 2;
 }
 
 message ClearDataResponse {}

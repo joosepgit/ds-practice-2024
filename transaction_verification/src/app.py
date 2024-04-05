@@ -27,7 +27,7 @@ class TransactionVerificationService(transaction_verification_grpc.TransactionVe
         vector_clock_cache[request.order_id.value] = [vector_clock, request]
 
         response.success = True
-        response.additional_info = ""
+        response.additional_info = "OK"
         logging.info(f"Successfully initialized transaction verification with vector clock: {vector_clock} \
                       and data: {request}")
         return response
@@ -97,9 +97,13 @@ class TransactionVerificationService(transaction_verification_grpc.TransactionVe
         logging.info(f"Clearing data for request {request}")
         curr_vector_clock: dict = vector_clock_cache[request.order_id.value][0]
         passed_vector_clock = dict(request.vector_clock.clocks)
-        for k, _ in curr_vector_clock.items():
-            if curr_vector_clock[k] > passed_vector_clock[k]:
-                raise ValueError(f"Final vector clock has a smaller value  than local vector clock for service {k}")
+
+        # Only verify if a vector clock was actually passed, otherwise assume initialization 
+        # failure and simply clear all data
+        if passed_vector_clock:
+            for k, _ in curr_vector_clock.items():
+                if curr_vector_clock[k] > passed_vector_clock[k]:
+                    raise ValueError(f"Final vector clock has a smaller value than local vector clock for service {k}")
             
         logging.debug(f"Current vector clock: {curr_vector_clock}")
         logging.debug(f"Passed vector clock: {passed_vector_clock}")
