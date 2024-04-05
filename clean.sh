@@ -1,7 +1,7 @@
-rm fraud_detection/src/grpc_gen/fraud*
-rm transaction_verification/src/grpc_gen/transaction*
-rm suggestions/src/grpc_gen/suggestions*
+rm fraud_detection/src/grpc_gen/*
+rm transaction_verification/src/grpc_gen/*
+rm suggestions/src/grpc_gen/*
+rm order_queue/src/grpc_gen/*
+rm order_executor/src/grpc_gen/*
 
-rm orchestrator/src/grpc_gen/fraud*
-rm orchestrator/src/grpc_gen/transaction*
-rm orchestrator/src/grpc_gen/suggestions*
+rm orchestrator/src/grpc_gen/*
