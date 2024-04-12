@@ -1,6 +1,7 @@
 services:
 
   frontend:
+    container_name: frontend
     build:
       context: ./
       dockerfile: ./frontend/Dockerfile
@@ -14,6 +15,7 @@ services:
       - WDS_SOCKET_PORT=0
 
   orchestrator:
+    container_name: orchestrator
     build:
       context: ./
       dockerfile: ./orchestrator/Dockerfile
@@ -27,6 +29,7 @@ services:
       - ./orchestrator/src:/app/orchestrator/src
 
   fraud_detection:
+    container_name: fraud_detection
     build:
       context: ./
       dockerfile: ./fraud_detection/Dockerfile
@@ -40,6 +43,7 @@ services:
       - ./fraud_detection/src:/app/fraud_detection/src
 
   transaction_verification:
+    container_name: transaction_verification
     build:
       context: ./
       dockerfile: ./transaction_verification/Dockerfile
@@ -53,6 +57,7 @@ services:
       - ./transaction_verification/src:/app/transaction_verification/src
 
   suggestions:
+    container_name: suggestions
     build:
       context: ./
       dockerfile: ./suggestions/Dockerfile
@@ -66,6 +71,7 @@ services:
       - ./suggestions/src:/app/suggestions/src
 
   order_queue:
+    container_name: order_queue
     build:
       context: ./
       dockerfile: ./order_queue/Dockerfile
@@ -78,17 +84,45 @@ services:
     volumes:
       - ./order_queue/src:/app/order_queue/src
 
-  order_executor:
+  order_executor_1:
+    hostname: order_executor_1
+    container_name: order_executor_1
     build:
       context: ./
       dockerfile: ./order_executor/Dockerfile
-    deploy:
-      mode: replicated
-      replicas: 3
     ports:
-      - "50055-50057:50055"
+      - "50055:50055"
     environment:
-      - INSTANCE_ID="${INSTANCE_INDEX}"
+      - PYTHONUNBUFFERED=TRUE
+      - PYTHONFILE=/app/order_executor/src/app.py
+      - PYTHONPATH=/app/order_executor/src
+    volumes:
+      - ./order_executor/src:/app/order_executor/src
+  
+  order_executor_2:
+    hostname: order_executor_2
+    container_name: order_executor_2
+    build:
+      context: ./
+      dockerfile: ./order_executor/Dockerfile
+    ports:
+      - "50056:50055"
+    environment:
+      - PYTHONUNBUFFERED=TRUE
+      - PYTHONFILE=/app/order_executor/src/app.py
+      - PYTHONPATH=/app/order_executor/src
+    volumes:
+      - ./order_executor/src:/app/order_executor/src
+
+  order_executor_3:
+    hostname: order_executor_3
+    container_name: order_executor_3
+    build:
+      context: ./
+      dockerfile: ./order_executor/Dockerfile
+    ports:
+      - "50057:50055"
+    environment:
       - PYTHONUNBUFFERED=TRUE
       - PYTHONFILE=/app/order_executor/src/app.py
       - PYTHONPATH=/app/order_executor/src

@@ -28,7 +28,11 @@ class OrderQueueService(order_queue_grpc.OrderQueueServiceServicer):
         logging.info(f"Dequeueing order")
 
         response = order_queue.DequeueResponse()
-    
+
+        if not self.order_queue:
+            logging.debug(f"No queued orders")
+            return response
+        
         popped: tuple[int, order_queue.OrderData] = heapq.heappop(self.order_queue)
         response.order_id.value, response.order_data = popped
         
