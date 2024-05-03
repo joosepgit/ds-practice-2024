@@ -40,4 +40,16 @@ Transaction verification verifies the input data. It checks several conditions t
 
 Suggestions always returns 3 suggestions with a random id, title and author. Each of which have been randomly selected from 4 possible options
 
+### Order queue
+
+The orchestrator enqueues order information to the order queue once the validation is complete. The queue is a priority queue that processes smallerorders first.
+
+### Order executor (replicated)
+
+The leading order executor node dequeues the orders periodically and updates the database.
+
+### Payment
+
+Payment service that relies on 2PC in coordination with the database cluster.
+
 
