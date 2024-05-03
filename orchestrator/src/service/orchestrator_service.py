@@ -268,51 +268,40 @@ async def enqueue_order(order_id, data):
 
     order_data_proto = order_queue.OrderData()
 
-    user_grpc_proto = order_queue.User()
-    user_grpc_proto.user_name = data["user"]["name"]
-    user_grpc_proto.user_contact = data["user"]["contact"]
+    order_data_proto.user.user_name = data["user"]["name"]
+    order_data_proto.user.user_contact = data["user"]["contact"]
 
-    order_data_proto.user = user_grpc_proto
-
-    credit_card_grpc_proto = order_queue.CreditCard()
-    credit_card_grpc_proto.card_number = data["creditCard"]["number"]
-    credit_card_grpc_proto.expiration_date = data["creditCard"]["expirationDate"]
-    credit_card_grpc_proto.cvv = data["creditCard"]["cvv"]
-
-    order_data_proto.credit_card = credit_card_grpc_proto
+    order_data_proto.credit_card.card_number = data["creditCard"]["number"]
+    order_data_proto.credit_card.expiration_date = data["creditCard"]["expirationDate"]
+    order_data_proto.credit_card.cvv = data["creditCard"]["cvv"]
 
     order_data_proto.user_comment = data["userComment"]
 
-    items_grpc_proto = order_queue.Items()
     for item in data["items"]:
-        items_grpc_proto.items.append(
+        order_data_proto.items.items.append(
             order_queue.Item(name=item["name"], quantity=item["quantity"])
         )
-
-    order_data_proto.items = items_grpc_proto
 
     order_data_proto.discount_code = data["discountCode"]
     order_data_proto.shipping_method = data["shippingMethod"]
     order_data_proto.gift_message = data["giftMessage"]
 
-    billing_address_grpc_proto = order_queue.BillingAddress()
-    billing_address_grpc_proto.country = data["billingAddress"]["country"]
-    billing_address_grpc_proto.state = data["billingAddress"]["state"]
-    billing_address_grpc_proto.city = data["billingAddress"]["city"]
-    billing_address_grpc_proto.street = data["billingAddress"]["street"]
-    billing_address_grpc_proto.zip = data["billingAddress"]["zip"]
-
-    order_data_proto.billing_address = billing_address_grpc_proto
+    order_data_proto.billing_address.country = data["billingAddress"]["country"]
+    order_data_proto.billing_address.state = data["billingAddress"]["state"]
+    order_data_proto.billing_address.city = data["billingAddress"]["city"]
+    order_data_proto.billing_address.street = data["billingAddress"]["street"]
+    order_data_proto.billing_address.zip = data["billingAddress"]["zip"]
 
     order_data_proto.gift_wrapping = data["giftWrapping"]
 
     order_data_proto.terms_accepted = data["termsAndConditionsAccepted"]
 
-    order_data_proto.notification_preference = data["notificationPreferences"]
+    for preference in data["notificationPreferences"]:
+        order_data_proto.notification_preference.preferences.append(preference)
 
-    with grpc.insecure_channel("order_queue:50054") as channel:
+    with grpc.insecure_channel("orderqueue:50054") as channel:
         stub = order_queue_grpc.OrderQueueServiceStub(channel)
-        response: order_queue.EnqueueResponse = stub.Initialize(
+        response: order_queue.EnqueueResponse = stub.Enqueue(
             order_queue.EnqueueRequest(
                 order_id=order_id_proto,
                 order_data=order_data_proto,

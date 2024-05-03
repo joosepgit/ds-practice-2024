@@ -64,7 +64,7 @@ async def checkout():
     await orchestrator_service.clear_data(order_id, final_vector_clock)
 
     # Enqueues validated order for processing
-    orchestrator_service.enqueue_order(order_id, data)
+    await orchestrator_service.enqueue_order(order_id, data)
 
     return {
         "orderId": str(order_id),

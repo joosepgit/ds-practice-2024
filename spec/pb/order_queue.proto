@@ -34,9 +34,9 @@ message OrderData {
     string shipping_method = 6;
     string gift_message = 7;
     BillingAddress billing_address = 8;
-    string gift_wrapping = 9;
+    bool gift_wrapping = 9;
     bool terms_accepted = 10;
-    string notification_preference = 11;
+    NotificationPreference notification_preference = 11;
 
 }
 
@@ -66,4 +66,8 @@ message Items {
 message Item {
     string name = 1;
     uint32 quantity = 2;
+}
+
+message NotificationPreference {
+    repeated string preferences = 1;
 }
