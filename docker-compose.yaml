@@ -70,8 +70,8 @@ services:
     volumes:
       - ./suggestions/src:/app/suggestions/src
 
-  order_queue:
-    container_name: order_queue
+  orderqueue:
+    container_name: orderqueue
     build:
       context: ./
       dockerfile: ./order_queue/Dockerfile
@@ -84,9 +84,9 @@ services:
     volumes:
       - ./order_queue/src:/app/order_queue/src
 
-  order_executor_1:
-    hostname: order_executor_1
-    container_name: order_executor_1
+  orderexecutor1:
+    hostname: orderexecutor1
+    container_name: orderexecutor1
     build:
       context: ./
       dockerfile: ./order_executor/Dockerfile
@@ -99,9 +99,9 @@ services:
     volumes:
       - ./order_executor/src:/app/order_executor/src
   
-  order_executor_2:
-    hostname: order_executor_2
-    container_name: order_executor_2
+  orderexecutor2:
+    hostname: orderexecutor2
+    container_name: orderexecutor2
     build:
       context: ./
       dockerfile: ./order_executor/Dockerfile
@@ -114,9 +114,9 @@ services:
     volumes:
       - ./order_executor/src:/app/order_executor/src
 
-  order_executor_3:
-    hostname: order_executor_3
-    container_name: order_executor_3
+  orderexecutor3:
+    hostname: orderexecutor3
+    container_name: orderexecutor3
     build:
       context: ./
       dockerfile: ./order_executor/Dockerfile
@@ -128,3 +128,105 @@ services:
       - PYTHONPATH=/app/order_executor/src
     volumes:
       - ./order_executor/src:/app/order_executor/src
+
+  # Use .env file if it ever stops being a sandbox project
+  dbnode1:
+    hostname: dbnode1
+    container_name: dbnode1
+    build:
+      context: ./
+      dockerfile: ./dbnode/Dockerfile
+    ports:
+      - "50058:50056"
+    volumes:
+      - ./dbnode/src:/app/dbnode/src
+    environment:
+      - PYTHONUNBUFFERED=TRUE
+      - PYTHONFILE=/app/dbnode/src/app.py
+      - PYTHONPATH=/app/dbnode/src
+
+  dbnode2:
+    hostname: dbnode2
+    container_name: dbnode2
+    build:
+      context: ./
+      dockerfile: ./dbnode/Dockerfile
+    ports:
+      - "50059:50056"
+    volumes:
+      - ./dbnode/src:/app/dbnode/src
+    environment:
+      - PYTHONUNBUFFERED=TRUE
+      - PYTHONFILE=/app/dbnode/src/app.py
+      - PYTHONPATH=/app/dbnode/src
+
+  dbnode3:
+    hostname: dbnode3
+    container_name: dbnode3
+    build:
+      context: ./
+      dockerfile: ./dbnode/Dockerfile
+    ports:
+      - "50060:50056"
+    volumes:
+      - ./dbnode/src:/app/dbnode/src
+    environment:
+      - PYTHONUNBUFFERED=TRUE
+      - PYTHONFILE=/app/dbnode/src/app.py
+      - PYTHONPATH=/app/dbnode/src
+
+  mongodb1:
+    hostname: mongodb1
+    container_name: mongodb1
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb1_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+      - MONGO_INITDB_DATABASE=bookstore
+      - MONGO_USER=mongo
+      - MONGO_PASSWORD=mongo
+      - MONGO_DB=bookstore
+
+  mongodb2:
+    hostname: mongodb2
+    container_name: mongodb2
+    image: mongo:latest
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb2_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+      - MONGO_INITDB_DATABASE=bookstore
+      - MONGO_USER=mongo
+      - MONGO_PASSWORD=mongo
+      - MONGO_DB=bookstore
+
+  mongodb3:
+    hostname: mongodb3
+    container_name: mongodb3
+    image: mongo:latest
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongodb3_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+      - MONGO_INITDB_DATABASE=bookstore
+      - MONGO_USER=mongo
+      - MONGO_PASSWORD=mongo
+      - MONGO_DB=bookstore
+
+volumes:
+  mongodb1_data:
+  mongodb2_data:
+  mongodb3_data:

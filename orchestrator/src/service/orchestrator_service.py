@@ -9,13 +9,16 @@ import grpc_gen.suggestions_pb2_grpc as suggestions_grpc
 import grpc_gen.transaction_verification_pb2 as transaction_verification
 import grpc_gen.transaction_verification_pb2_grpc as transaction_verification_grpc
 
+import grpc_gen.order_queue_pb2 as order_queue
+import grpc_gen.order_queue_pb2_grpc as order_queue_grpc
+
 from exception.validation_error import FraudDetectionError
 from exception.validation_error import TransactionVerificationError
 from exception.validation_error import CheckoutError
 from exception.validation_error import SuggestionsError
 
 
-async def init_fraud_detection(order_id, credit_card, billing_address) -> None:
+async def init_fraud_detection(order_id, credit_card, billing_address):
     logging.info(
         f"Initializing fraud detection with credit card: {credit_card}\
                    and billing address: {billing_address}"
@@ -54,9 +57,7 @@ async def init_fraud_detection(order_id, credit_card, billing_address) -> None:
     logging.info(f"Additional information: {response.additional_info}")
 
 
-async def init_transaction_verification(
-    order_id, credit_card, billing_address, items
-) -> None:
+async def init_transaction_verification(order_id, credit_card, billing_address, items):
     logging.info(
         f"Initializing transaction verification with: {credit_card};\
                    billing address: {billing_address};\
@@ -124,7 +125,7 @@ async def init_suggestions(order_id, books):
     logging.info(f"Suggestions initialized successfully")
 
 
-async def checkout(order_id: str) -> None:
+async def checkout(order_id: str):
 
     order_id_proto = transaction_verification.OrderUUID()
     order_id_proto.value = order_id
@@ -257,3 +258,65 @@ async def clear_suggestions_data(order_id: str, final_vector_clock: dict):
                 vector_clock=suggestions_final_vector_clock_proto,
             )
         )
+
+
+async def enqueue_order(order_id, data):
+    logging.info(f"Enqueueing order: {data}")
+
+    order_id_proto = order_queue.OrderUUID()
+    order_id_proto.value = order_id
+
+    order_data_proto = order_queue.OrderData()
+
+    user_grpc_proto = order_queue.User()
+    user_grpc_proto.user_name = data["user"]["name"]
+    user_grpc_proto.user_contact = data["user"]["contact"]
+
+    order_data_proto.user = user_grpc_proto
+
+    credit_card_grpc_proto = order_queue.CreditCard()
+    credit_card_grpc_proto.card_number = data["creditCard"]["number"]
+    credit_card_grpc_proto.expiration_date = data["creditCard"]["expirationDate"]
+    credit_card_grpc_proto.cvv = data["creditCard"]["cvv"]
+
+    order_data_proto.credit_card = credit_card_grpc_proto
+
+    order_data_proto.user_comment = data["userComment"]
+
+    items_grpc_proto = order_queue.Items()
+    for item in data["items"]:
+        items_grpc_proto.items.append(
+            order_queue.Item(name=item["name"], quantity=item["quantity"])
+        )
+
+    order_data_proto.items = items_grpc_proto
+
+    order_data_proto.discount_code = data["discountCode"]
+    order_data_proto.shipping_method = data["shippingMethod"]
+    order_data_proto.gift_message = data["giftMessage"]
+
+    billing_address_grpc_proto = order_queue.BillingAddress()
+    billing_address_grpc_proto.country = data["billingAddress"]["country"]
+    billing_address_grpc_proto.state = data["billingAddress"]["state"]
+    billing_address_grpc_proto.city = data["billingAddress"]["city"]
+    billing_address_grpc_proto.street = data["billingAddress"]["street"]
+    billing_address_grpc_proto.zip = data["billingAddress"]["zip"]
+
+    order_data_proto.billing_address = billing_address_grpc_proto
+
+    order_data_proto.gift_wrapping = data["giftWrapping"]
+
+    order_data_proto.terms_accepted = data["termsAndConditionsAccepted"]
+
+    order_data_proto.notification_preference = data["notificationPreferences"]
+
+    with grpc.insecure_channel("order_queue:50054") as channel:
+        stub = order_queue_grpc.OrderQueueServiceStub(channel)
+        response: order_queue.EnqueueResponse = stub.Initialize(
+            order_queue.EnqueueRequest(
+                order_id=order_id_proto,
+                order_data=order_data_proto,
+            )
+        )
+
+    logging.info(f"Successfully enqueued order with id {order_id}")

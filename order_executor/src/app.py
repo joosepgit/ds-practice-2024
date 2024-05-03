@@ -3,6 +3,8 @@ import time
 import threading
 import socket
 
+import grpc_gen.db_pb2 as database
+import grpc_gen.db_pb2_grpc as database_grpc
 import grpc_gen.order_queue_pb2 as order_queue
 import grpc_gen.order_queue_pb2_grpc as order_queue_grpc
 import grpc_gen.order_executor_pb2 as order_executor
@@ -12,10 +14,41 @@ import grpc
 
 from concurrent import futures
 
+from cachetools import TTLCache
+
 HOSTNAME = socket.gethostname()
 COMMON_HOSTNAME = HOSTNAME[:-1]
 PROC_ID = int(HOSTNAME[-1])
 NUM_REPLICAS = 3
+
+COMMON_DBNODE_NAME = "dbnode"
+# Cache current db cluster leader for 60 seconds
+LEADER_KEY = "LEADER"
+leader_cache = TTLCache(maxsize=100, ttl=60)
+
+
+# Dummy interface that stands in front of the database cluster that implements chain replication internally
+class DatabaseService(database_grpc.DbnodeServiceServicer):
+
+    # Takes note of who is the leader by listening to the heartbeat at all times
+    def HeartBeat(self, request: database.HeartBeatRequest, context):
+        logging.debug(f"Received database heartbeat from dbnode{request.process_id}")
+        leader_cache[LEADER_KEY] = request.process_id
+        return database.Empty()
+
+    # Forwards database operations to the current db cluster leader
+    def GetDocument(self, request: database.GetDocumentRequest, context):
+        target_svc = f"{COMMON_DBNODE_NAME}{leader_cache[LEADER_KEY]}:50056"
+        with grpc.insecure_channel(target_svc) as channel:
+            stub = database_grpc.DbnodeServiceStub(channel)
+        return stub.GetDocument(request)
+
+    # Forwards database operations to the current db cluster leader
+    def UpdateDocument(self, request: database.UpdateDocumentRequest, context):
+        target_svc = f"{COMMON_DBNODE_NAME}{leader_cache[LEADER_KEY]}:50056"
+        with grpc.insecure_channel(target_svc) as channel:
+            stub = database_grpc.DbnodeServiceStub(channel)
+        return stub.UpdateDocument(request)
 
 
 class OrderExecutorService(order_executor_grpc.OrderExecutorServiceServicer):
@@ -33,7 +66,9 @@ class OrderExecutorService(order_executor_grpc.OrderExecutorServiceServicer):
         return order_executor.Empty()
 
     def HeartBeat(self, request: order_executor.HeartBeatRequest, context):
-        logging.debug(f"Received hearbeat")
+        logging.debug(
+            f"Received executor hearbeat from orderexecutor{request.process_id}"
+        )
         self.last_heartbeat_timestamp = time.time()
         self.is_leader = False
         return order_executor.Empty()
@@ -48,11 +83,15 @@ class OrderExecutorService(order_executor_grpc.OrderExecutorServiceServicer):
             return
 
         logging.info("Attempting to dequeue order")
-        with grpc.insecure_channel("order_queue:50054") as channel:
-            stub = order_queue_grpc.OrderQueueServiceStub(channel)
-            response: order_queue.DequeueResponse = stub.Dequeue(
-                order_queue.DequeueRequest()
-            )
+        try:
+            with grpc.insecure_channel("orderqueue:50054") as channel:
+                stub = order_queue_grpc.OrderQueueServiceStub(channel)
+                response: order_queue.DequeueResponse = stub.Dequeue(
+                    order_queue.DequeueRequest()
+                )
+        except Exception as e:
+            logging.error(f"Order queue is down or something went wrong", exc_info=e)
+            return
 
         if not response.order_id.value:
             logging.info(f"Nothing was queued")
@@ -115,6 +154,8 @@ def serve():
     order_executor_grpc.add_OrderExecutorServiceServicer_to_server(
         order_executor_service, server
     )
+    database_service = DatabaseService()
+    database_grpc.add_DbnodeServiceServicer_to_server(database_service, server)
     port = "50055"
     server.add_insecure_port("[::]:" + port)
     server.start()

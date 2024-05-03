@@ -13,6 +13,9 @@ cp spec/pb/order_queue.proto order_queue/src/grpc_gen/order_queue.proto
 
 cp spec/pb/order_executor.proto order_executor/src/grpc_gen/order_executor.proto
 cp spec/pb/order_queue.proto order_executor/src/grpc_gen/order_queue.proto
+cp spec/pb/db.proto order_executor/src/grpc_gen/db.proto
+
+cp spec/pb/db.proto dbnode/src/grpc_gen/db.proto
 
 cp spec/pb/fraud_detection.proto orchestrator/src/grpc_gen/fraud_detection.proto
 cp spec/pb/transaction_verification.proto orchestrator/src/grpc_gen/transaction_verification.proto
@@ -29,10 +32,13 @@ python -m grpc_tools.protoc -I. \
  --python_out=. --pyi_out=. --grpc_python_out=. suggestions/src/grpc_gen/*.proto
 
 python -m grpc_tools.protoc -I. \
- --python_out=. --pyi_out=. --grpc_python_out=. orchestrator/src/grpc_gen/*.proto
-
-python -m grpc_tools.protoc -I. \
  --python_out=. --pyi_out=. --grpc_python_out=. order_queue/src/grpc_gen/*.proto
 
 python -m grpc_tools.protoc -I. \
  --python_out=. --pyi_out=. --grpc_python_out=. order_executor/src/grpc_gen/*.proto
+
+ python -m grpc_tools.protoc -I. \
+ --python_out=. --pyi_out=. --grpc_python_out=. dbnode/src/grpc_gen/*.proto
+
+ python -m grpc_tools.protoc -I. \
+ --python_out=. --pyi_out=. --grpc_python_out=. orchestrator/src/grpc_gen/*.proto

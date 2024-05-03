@@ -63,6 +63,9 @@ async def checkout():
     # to clear all data related to the current order by order id
     await orchestrator_service.clear_data(order_id, final_vector_clock)
 
+    # Enqueues validated order for processing
+    orchestrator_service.enqueue_order(order_id, data)
+
     return {
         "orderId": str(order_id),
         "status": OrderStatus.ACCEPTED.value,
