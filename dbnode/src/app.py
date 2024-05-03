@@ -2,17 +2,23 @@ import logging
 import time
 import threading
 import socket
+import json
 
 import grpc_gen.db_pb2 as dbnode
 import grpc_gen.db_pb2_grpc as dbnode_grpc
 import grpc
 
 from concurrent import futures
+from pymongo import MongoClient
 
 HOSTNAME = socket.gethostname()
 COMMON_HOSTNAME = HOSTNAME[:-1]
 PROC_ID = int(HOSTNAME[-1])
 NUM_REPLICAS = 3
+
+client = MongoClient(f"mongodb://mongo:mongo@mongodb{PROC_ID}:27017/bookstore")
+db = client["bookstore"]
+collection = db["books"]
 
 
 class DbnodeService(dbnode_grpc.DbnodeServiceServicer):
@@ -27,20 +33,25 @@ class DbnodeService(dbnode_grpc.DbnodeServiceServicer):
     # Just performs the query, no consensus mechanisms needed
     def GetDocument(self, request: dbnode.GetDocumentRequest, context):
         response = dbnode.DocumentResponse()
-        # TODO: Query db
+        logging.info(f"Querying mongodb{PROC_ID} for book: {request.book_title}")
+        query = {"title": request.book_title}
+        result = collection.find_one(query)
+        logging.info(f"Found document: {result}")
+        response.document = json.dumps(result, default=str)
         return response
 
     # Forwards database operations to the next node in the chain until a node with the maximum
     # process id or a node that does not receive a response from the following nodes
     def UpdateDocument(self, request: dbnode.UpdateDocumentRequest, context):
         anyresponse = False
-        for target_id in range(PROC_ID - 1, 0, -1):
+        for target_id in range(PROC_ID + 1, 4):
             target_svc = f"{COMMON_HOSTNAME}{target_id}:50056"
             logging.debug(f"Targeting service {target_svc}")
             try:
                 with grpc.insecure_channel(target_svc) as channel:
                     stub = dbnode_grpc.DbnodeServiceStub(channel)
-                    response = stub.UpdateDocument(request)
+                    stub.UpdateDocument(request)
+                    anyresponse = True
                 break
             # Silently skip intermediary failed nodes
             except Exception as e:
@@ -49,7 +60,12 @@ class DbnodeService(dbnode_grpc.DbnodeServiceServicer):
         if not anyresponse:
             logging.info(f"Last healthy node in the db cluster: {HOSTNAME}")
 
-        # TODO: Update db
+        to_update = json.loads(request.document)
+        logging.info(f"Updating mongodb{PROC_ID} book stock to {to_update['stock']} ")
+        query = {"title": to_update["title"]}
+        updated = {"$set": {"stock": to_update["stock"]}}
+        collection.update_one(query, updated)
+
         return dbnode.Empty()
 
     def Election(self, request: dbnode.RunElectionRequest, context):

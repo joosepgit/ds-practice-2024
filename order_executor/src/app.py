@@ -2,6 +2,7 @@ import logging
 import time
 import threading
 import socket
+import json
 
 import grpc_gen.db_pb2 as database
 import grpc_gen.db_pb2_grpc as database_grpc
@@ -26,6 +27,8 @@ COMMON_DBNODE_NAME = "dbnode"
 LEADER_KEY = "LEADER"
 leader_cache = TTLCache(maxsize=100, ttl=60)
 
+COLLECTION_NAME = "books"
+
 
 # Dummy interface that stands in front of the database cluster that implements chain replication internally
 class DatabaseService(database_grpc.DbnodeServiceServicer):
@@ -39,16 +42,24 @@ class DatabaseService(database_grpc.DbnodeServiceServicer):
     # Forwards database operations to the current db cluster leader
     def GetDocument(self, request: database.GetDocumentRequest, context):
         target_svc = f"{COMMON_DBNODE_NAME}{leader_cache[LEADER_KEY]}:50056"
+        logging.info(
+            f"Attempting to get book {request.book_title} from service {target_svc}"
+        )
         with grpc.insecure_channel(target_svc) as channel:
             stub = database_grpc.DbnodeServiceStub(channel)
-        return stub.GetDocument(request)
+            response = stub.GetDocument(request)
+        return response
 
     # Forwards database operations to the current db cluster leader
     def UpdateDocument(self, request: database.UpdateDocumentRequest, context):
         target_svc = f"{COMMON_DBNODE_NAME}{leader_cache[LEADER_KEY]}:50056"
+        logging.info(
+            f"Attempting to update book {request.document} with service {target_svc}"
+        )
         with grpc.insecure_channel(target_svc) as channel:
             stub = database_grpc.DbnodeServiceStub(channel)
-        return stub.UpdateDocument(request)
+            response = stub.UpdateDocument(request)
+        return response
 
 
 class OrderExecutorService(order_executor_grpc.OrderExecutorServiceServicer):
@@ -86,19 +97,56 @@ class OrderExecutorService(order_executor_grpc.OrderExecutorServiceServicer):
         try:
             with grpc.insecure_channel("orderqueue:50054") as channel:
                 stub = order_queue_grpc.OrderQueueServiceStub(channel)
-                response: order_queue.DequeueResponse = stub.Dequeue(
+                dq_response: order_queue.DequeueResponse = stub.Dequeue(
                     order_queue.DequeueRequest()
                 )
         except Exception as e:
             logging.error(f"Order queue is down or something went wrong", exc_info=e)
             return
 
-        if not response.order_id.value:
+        if not dq_response.order_id.value:
             logging.info(f"Nothing was queued")
             return
 
-        logging.info(f"Executing order: {response.order_id}")
-        logging.debug(f"Order data: {response.order_data}")
+        logging.info(f"Executing order: {dq_response.order_id}")
+        logging.debug(f"Order data: {dq_response.order_data}")
+
+        self.update_stock(dq_response)
+
+    def update_stock(self, dq_response: order_queue.DequeueResponse):
+        for item in dq_response.order_data.items.items:
+            try:
+                target_svc = "[::]:50055"
+                logging.info(
+                    f"Attempting to get book {item.name} from service {target_svc}"
+                )
+                with grpc.insecure_channel(target_svc) as channel:
+                    stub = database_grpc.DbnodeServiceStub(channel)
+                    query_response: database.DocumentResponse = stub.GetDocument(
+                        database.GetDocumentRequest(
+                            collection_name=COLLECTION_NAME, book_title=item.name
+                        )
+                    )
+            except Exception as e:
+                logging.error(f"Leader is down or something went wrong", exc_info=e)
+                return
+
+            document = json.loads(query_response.document)
+            updated_quantity = document["stock"] - item.quantity
+            document["stock"] = updated_quantity
+
+            try:
+                target_svc = "[::]:50055"
+                with grpc.insecure_channel(target_svc) as channel:
+                    stub = database_grpc.DbnodeServiceStub(channel)
+                    stub.UpdateDocument(
+                        database.UpdateDocumentRequest(
+                            document=json.dumps(document, default=str)
+                        )
+                    )
+            except Exception as e:
+                logging.error(f"Leader is down or something went wrong", exc_info=e)
+                return
 
     def check_state(self):
         while True:
