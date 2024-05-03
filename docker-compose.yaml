@@ -226,6 +226,20 @@ services:
       - MONGO_PASSWORD=mongo
       - MONGO_DB=bookstore
 
+  payment:
+    container_name: payment
+    build:
+      context: ./
+      dockerfile: ./payment/Dockerfile
+    ports:
+      - 50061:50057
+    environment:
+      - PYTHONUNBUFFERED=TRUE
+      - PYTHONFILE=/app/payment/src/app.py
+      - PYTHONPATH=/app/payment/src
+    volumes:
+      - ./payment/src:/app/payment/src
+
 volumes:
   mongodb1_data:
   mongodb2_data:

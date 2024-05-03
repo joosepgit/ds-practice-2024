@@ -17,6 +17,8 @@ cp spec/pb/db.proto order_executor/src/grpc_gen/db.proto
 
 cp spec/pb/db.proto dbnode/src/grpc_gen/db.proto
 
+cp spec/pb/payment.proto payment/src/grpc_gen/payment.proto
+
 cp spec/pb/fraud_detection.proto orchestrator/src/grpc_gen/fraud_detection.proto
 cp spec/pb/transaction_verification.proto orchestrator/src/grpc_gen/transaction_verification.proto
 cp spec/pb/suggestions.proto orchestrator/src/grpc_gen/suggestions.proto
@@ -39,6 +41,9 @@ python -m grpc_tools.protoc -I. \
 
  python -m grpc_tools.protoc -I. \
  --python_out=. --pyi_out=. --grpc_python_out=. dbnode/src/grpc_gen/*.proto
+
+  python -m grpc_tools.protoc -I. \
+ --python_out=. --pyi_out=. --grpc_python_out=. payment/src/grpc_gen/*.proto
 
  python -m grpc_tools.protoc -I. \
  --python_out=. --pyi_out=. --grpc_python_out=. orchestrator/src/grpc_gen/*.proto
