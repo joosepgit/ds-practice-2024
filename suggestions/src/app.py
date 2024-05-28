@@ -11,35 +11,6 @@ from cachetools import TTLCache
 
 SERVICE_IDENTIFIER = "SUGGESTIONS"
 
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
-from opentelemetry import metrics
-from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-
-# Service name is required for most backends
-resource = Resource(attributes={SERVICE_NAME: SERVICE_IDENTIFIER.lower()})
-
-traceProvider = TracerProvider(resource=resource)
-processor = BatchSpanProcessor(
-    OTLPSpanExporter(endpoint="http://observability:4318/v1/metrics")
-)
-traceProvider.add_span_processor(processor)
-trace.set_tracer_provider(traceProvider)
-
-reader = PeriodicExportingMetricReader(
-    OTLPMetricExporter(endpoint="http://observability:4318/v1/metrics")
-)
-meterProvider = MeterProvider(resource=resource, metric_readers=[reader])
-metrics.set_meter_provider(meterProvider)
-
-
 vector_clock_cache = TTLCache(maxsize=100, ttl=60)
 
 
