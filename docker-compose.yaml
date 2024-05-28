@@ -240,6 +240,15 @@ services:
     volumes:
       - ./payment/src:/app/payment/src
 
+  observability:
+    image: grafana/otel-lgtm
+    ports:
+      - "3000:3000"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      - OTEL_METRIC_EXPORT_INTERVAL=1000
+
 volumes:
   mongodb1_data:
   mongodb2_data:

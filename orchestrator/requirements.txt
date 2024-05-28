@@ -10,4 +10,7 @@ protobuf==4.25.2
 Werkzeug==3.0.1
 Flask-CORS==4.0.0
 flask[async]
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
 
