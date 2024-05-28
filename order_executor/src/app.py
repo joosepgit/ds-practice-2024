@@ -86,7 +86,7 @@ class OrderExecutorService(order_executor_grpc.OrderExecutorServiceServicer):
 
     def attempt_execution(self):
         while True:
-            time.sleep(5)
+            time.sleep(2)
             self.execute_next()
 
     def execute_next(self):

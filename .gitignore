@@ -6,3 +6,6 @@ frontend/package-lock.json
 
 /**/grpc_gen/**/*
 !/**/grpc_gen/**/__init__.py
+
+__pycache__/
+.pytest_cache/
