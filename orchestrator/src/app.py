@@ -41,6 +41,11 @@ reader = PeriodicExportingMetricReader(
 meterProvider = MeterProvider(resource=resource, metric_readers=[reader])
 metrics.set_meter_provider(meterProvider)
 
+meter = metrics.get_meter("orchestrator.meter")
+requests_counter = meter.create_counter(
+    "requests.counter", unit="1", description="Counts the amount of requests"
+)
+
 
 app = Flask(__name__)
 CORS(app)
@@ -62,6 +67,8 @@ async def checkout():
 
     order_id = str(uuid.uuid4())
     logging.info(f"Initializing order {order_id} checkout")
+
+    requests_counter.add(1)
 
     # Initialize all services with necessary data, results in caching data and freshly
     # initialized vector clock with order uuid as key.
